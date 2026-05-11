@@ -618,8 +618,26 @@ void HexIt::renderScreen()
 	setCursorPos();
 	
 	// Render Status Area
-	wmove(m_wStatusArea, 0, HALF_WIDTH(m_uWidth)-HALF_WIDTH(6));
-	waddstr(m_wStatusArea, "STATUS");
+	{
+		char left[128];
+		uint pct = (m_uFileSize > 0) ? (uint)((100.0 * m_cursor.word) / m_uFileSize) : 0;
+		snprintf(left, sizeof(left), " %07X / %07X (%3u%%)  %s%s",
+		         m_cursor.word, m_uFileSize, pct,
+		         m_cursor.editing ? "EDIT" : "READ",
+		         m_bBufferDirty ? "  *modified*" : "");
+		wmove(m_wStatusArea, 0, 0);
+		waddstr(m_wStatusArea, left);
+
+		if (!m_statusMessage.empty()) {
+			int msglen = (int)m_statusMessage.size();
+			int col = (int)m_uWidth - msglen - 1;
+			if (col > (int)strlen(left) + 2) {
+				wmove(m_wStatusArea, 0, col);
+				waddstr(m_wStatusArea, m_statusMessage.c_str());
+			}
+			m_statusMessage.clear(); // one-frame
+		}
+	}
 
 	// Render Command Area
 	wmove(m_wCommandArea, 0, HALF_WIDTH(m_uWidth)-HALF_WIDTH(5));
