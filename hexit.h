@@ -130,6 +130,7 @@ private:
 	bool saveToDisk();                                              // returns true on success
 	void statusMessage(const std::string& msg);                     // transient one-frame status bar message
 	bool inSelection(uint byte_pos) const;
+	bool promptHex(const char* label, uint nibbles, uint& out);
 
 	//
 	void editInit();

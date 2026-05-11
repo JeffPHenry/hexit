@@ -967,6 +967,65 @@ bool HexIt::inSelection(uint byte_pos) const
 	return byte_pos >= lo && byte_pos <= hi;
 }
 
+bool HexIt::promptHex(const char* label, uint nibbles, uint& out)
+{
+	if (nibbles == 0 || nibbles > 8) return false;
+
+	std::string entered;
+	out = 0;
+
+	auto redraw = [&]() {
+		wbkgd(m_wCommandArea, COLOR_PAIR(COLOR_COMMAND));
+		werase(m_wCommandArea);
+		wmove(m_wCommandArea, 0, 1);
+		waddstr(m_wCommandArea, label);
+		waddstr(m_wCommandArea, ": ");
+		waddstr(m_wCommandArea, entered.c_str());
+		for (size_t i = entered.size(); i < nibbles; ++i) waddch(m_wCommandArea, '_');
+		wmove(m_wCommandArea, 1, 1);
+		waddstr(m_wCommandArea, "[0-9A-F]  Enter=accept  Esc=cancel  Backspace=delete");
+		wrefresh(m_wCommandArea);
+	};
+
+	redraw();
+
+	while (true) {
+		TermKeyKey key;
+		if (termkey_waitkey(m_tk, &key) != TERMKEY_RES_KEY) continue;
+
+		if (key.type == TERMKEY_TYPE_KEYSYM) {
+			if (key.code.sym == TERMKEY_SYM_ENTER) {
+				while (entered.size() < nibbles) entered.push_back('0');
+				out = 0;
+				for (size_t i = 0; i < entered.size(); ++i) {
+					char c = entered[i];
+					uint v = 0;
+					if (c >= '0' && c <= '9') v = c - '0';
+					else if (c >= 'a' && c <= 'f') v = 10 + (c - 'a');
+					else if (c >= 'A' && c <= 'F') v = 10 + (c - 'A');
+					out = (out << 4) | v;
+				}
+				return true;
+			}
+			if (key.code.sym == TERMKEY_SYM_ESCAPE) return false;
+			if (key.code.sym == TERMKEY_SYM_BACKSPACE) {
+				if (!entered.empty()) entered.pop_back();
+				redraw();
+				continue;
+			}
+		} else if (key.type == TERMKEY_TYPE_UNICODE) {
+			char c = (char)key.code.codepoint;
+			bool isHex = (c >= '0' && c <= '9') ||
+			             (c >= 'a' && c <= 'f') ||
+			             (c >= 'A' && c <= 'F');
+			if (isHex && entered.size() < nibbles) {
+				entered.push_back(c);
+				redraw();
+			}
+		}
+	}
+}
+
 bool HexIt::saveToDisk()
 {
 	std::string target = m_outputFilename.empty() ? m_inputFilename : m_outputFilename;
