@@ -20,6 +20,8 @@ viewer and editor.
 #include <fstream>
 #include <sstream>
 #include <vector>
+#include <cstdint>
+#include <cstring>
 #include <assert.h>
 #include "curses.h"
 #include "termkey.h"
@@ -79,6 +81,7 @@ private:
     uint m_uInsertWord;
     
 	std::string m_statusMessage;
+	int64_t m_selAnchor;        // -1 means no selection; otherwise byte offset of the anchor
 	Cursor m_cursor;
 
 	// ncurses stuff
@@ -126,6 +129,7 @@ private:
 	// helpers
 	bool saveToDisk();                                              // returns true on success
 	void statusMessage(const std::string& msg);                     // transient one-frame status bar message
+	bool inSelection(uint byte_pos) const;
 
 	//
 	void editInit();

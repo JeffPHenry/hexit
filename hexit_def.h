@@ -48,6 +48,7 @@
 #define COLOR_TITLE				4
 #define COLOR_EDITOR			5	// Status line will share background with the Editor
 #define COLOR_COMMAND			6
+#define COLOR_SELECTION			7
 
 #define ROWS_TITLE				1
 #define ROWS_STATUS				1

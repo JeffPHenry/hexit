@@ -36,11 +36,13 @@ HexIt::HexIt()
 ,	m_uHeight(40)
 ,	m_uWidth(80)
 ,	m_uFilePos(0)
+,	m_uFileSize(0)
 ,	m_bShowColor(false)
 ,	m_bPrintUpper(false)
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
 ,	m_uInsertWord(0)
+,	m_selAnchor(-1)
 {
     sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
 }
@@ -51,11 +53,13 @@ HexIt::HexIt(char* filename)
 ,	m_uHeight(40)
 ,	m_uWidth(80)
 ,	m_uFilePos(0)
+,	m_uFileSize(0)
 ,	m_bShowColor(false)
 ,	m_bPrintUpper(false)
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
 ,	m_uInsertWord(0)
+,	m_selAnchor(-1)
 {
 	sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
 
@@ -166,25 +170,26 @@ void HexIt::editMode()
              	switch(key.code.sym)
              	{
  				case TERMKEY_SYM_DOWN:
- 					if(!m_cursor.editing)
- 						moveCursor(0,ROW_SIZE);
- 					break;
- 				case TERMKEY_SYM_UP:
- 					if(!m_cursor.editing)
- 						moveCursor(0,-ROW_SIZE);
- 					break;
- 				case TERMKEY_SYM_LEFT:
- 					if(m_cursor.editing)
- 						moveNibble(-1);
- 					else
- 						moveCursor(-WORD_SIZE,0);
- 					break;
- 				case TERMKEY_SYM_RIGHT:
- 					if(m_cursor.editing)
- 						moveNibble(1);
- 					else
- 						moveCursor(WORD_SIZE,0);
- 					break;
+				case TERMKEY_SYM_UP:
+				case TERMKEY_SYM_LEFT:
+				case TERMKEY_SYM_RIGHT: {
+					bool shifted = (key.modifiers & TERMKEY_KEYMOD_SHIFT) != 0;
+					if (shifted && m_selAnchor < 0) {
+						m_selAnchor = (int64_t)m_cursor.word;
+					} else if (!shifted) {
+						m_selAnchor = -1;
+					}
+					if (m_cursor.editing) {
+						if (key.code.sym == TERMKEY_SYM_LEFT)  moveNibble(-1);
+						if (key.code.sym == TERMKEY_SYM_RIGHT) moveNibble(1);
+					} else {
+						if (key.code.sym == TERMKEY_SYM_DOWN)  moveCursor(0,  ROW_SIZE);
+						if (key.code.sym == TERMKEY_SYM_UP)    moveCursor(0, -ROW_SIZE);
+						if (key.code.sym == TERMKEY_SYM_LEFT)  moveCursor(-WORD_SIZE, 0);
+						if (key.code.sym == TERMKEY_SYM_RIGHT) moveCursor( WORD_SIZE, 0);
+					}
+					break;
+				}
                  case TERMKEY_SYM_ENTER:
                      toggleEdit(true);
                      break;
@@ -558,7 +563,7 @@ void HexIt::renderScreen()
 				if(j < bytes_read)
 				{
 					char toWrite = c[j];
-		            
+
 					// test if we're editing this word, if so use the edit word instead
 					// remove the last bit from j so that both bytes we're editing are replaced
 					if( m_cursor.editing &&
@@ -567,7 +572,16 @@ void HexIt::renderScreen()
 						// pull out individual byte
 						toWrite = ((m_cursor.editWord >> ((1-(j&1))*8)) & 0xFF);
 					}
-					textColor(byte+j, toWrite);
+					bool isCursorByte = (((byte + j) & 0xFFFFFFFEu) == m_cursor.word);
+					if (inSelection(byte + j) && !isCursorByte) {
+						std::stringstream tmp;
+						tmp << hex << getCaseFunction() << setw(2) << setfill('0') << (toWrite & 0xFF);
+						wattron(m_wEditArea, COLOR_PAIR(COLOR_SELECTION));
+						waddstr(m_wEditArea, tmp.str().c_str());
+						wattroff(m_wEditArea, COLOR_PAIR(COLOR_SELECTION));
+					} else {
+						textColor(byte+j, toWrite);
+					}
 				}
 				else
 				{
@@ -891,6 +905,7 @@ void HexIt::editInit()
 		init_pair(COLOR_TITLE,			COLOR_BLUE,			COLOR_WHITE);
 		init_pair(COLOR_EDITOR,			COLOR_WHITE,		COLOR_BLUE);
 		init_pair(COLOR_COMMAND,		COLOR_BLUE,		COLOR_WHITE);
+		init_pair(COLOR_SELECTION,		COLOR_BLACK,		COLOR_YELLOW);
 	}
 }
 
@@ -922,6 +937,16 @@ void HexIt::editCleanup()
 void HexIt::statusMessage(const std::string& msg)
 {
 	m_statusMessage = msg;
+}
+
+bool HexIt::inSelection(uint byte_pos) const
+{
+	if (m_selAnchor < 0) return false;
+	uint a = (uint)m_selAnchor;
+	uint b = m_cursor.word + 1; // include the cursor's second byte
+	uint lo = (a < b) ? a : b;
+	uint hi = (a > b) ? a : b;
+	return byte_pos >= lo && byte_pos <= hi;
 }
 
 bool HexIt::saveToDisk()
