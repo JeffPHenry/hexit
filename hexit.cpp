@@ -879,7 +879,18 @@ void HexIt::cmdFindByte()
 
 void HexIt::cmdFillWord()
 {
+	uint val = 0;
+	if (!promptHex("Fill word", 4, val)) return;
 
+	auto* pbuf = m_buffer.rdbuf();
+	if (pbuf->pubseekpos(m_cursor.word) == (std::streampos)m_cursor.word) {
+		pbuf->sputc((char)((val >> 8) & 0xFF));
+		pbuf->sputc((char)(val & 0xFF));
+		m_bBufferDirty = true;
+		char msg[40];
+		snprintf(msg, sizeof(msg), "filled %04X at %07X", val & 0xFFFF, m_cursor.word);
+		statusMessage(msg);
+	}
 }
 
 void HexIt::cmdInsertWord()
