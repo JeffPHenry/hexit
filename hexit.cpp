@@ -834,7 +834,7 @@ void HexIt::cmdInsertWordAt()
 
 void HexIt::cmdOutputFile()
 {
-
+	saveToDisk();
 }
 
 void HexIt::cmdCursorWord()
@@ -844,7 +844,10 @@ void HexIt::cmdCursorWord()
 
 void HexIt::cmdCloseFile()
 {
-
+	if (m_bBufferDirty) {
+		saveToDisk();
+	}
+	// m_bRunning is already set to false by the keybinding site.
 }
 
 void HexIt::cmdPageUp()
@@ -924,5 +927,35 @@ void HexIt::editCleanup()
 		termkey_destroy(m_tk);
 		m_tk = NULL;
 	}
-    
+
+}
+
+void HexIt::statusMessage(const std::string& msg)
+{
+	m_statusMessage = msg;
+}
+
+bool HexIt::saveToDisk()
+{
+	std::string target = m_outputFilename.empty() ? m_inputFilename : m_outputFilename;
+	if (target.empty()) {
+		statusMessage("no output filename");
+		return false;
+	}
+
+	std::string data = m_buffer.str();
+	std::ofstream out(target.c_str(), std::ios::binary | std::ios::trunc);
+	if (!out.is_open()) {
+		statusMessage("save failed: cannot open " + target);
+		return false;
+	}
+	out.write(data.data(), (std::streamsize)data.size());
+	if (!out.good()) {
+		statusMessage("save failed: write error");
+		return false;
+	}
+	out.close();
+	m_bBufferDirty = false;
+	statusMessage("saved " + std::to_string(data.size()) + " bytes to " + target);
+	return true;
 }

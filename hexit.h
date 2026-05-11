@@ -81,6 +81,7 @@ private:
     bool m_bShowASCII;
     uint m_uInsertWord;
     
+	std::string m_statusMessage;
 	Cursor m_cursor;
 
 	// ncurses stuff
@@ -126,7 +127,11 @@ private:
 	void cmdPageUp();
 	void cmdPasteByte();
 
-	// 
+	// helpers
+	bool saveToDisk();                                              // returns true on success
+	void statusMessage(const std::string& msg);                     // transient one-frame status bar message
+
+	//
 	void editInit();
 	void editCleanup();
 
