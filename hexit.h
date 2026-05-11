@@ -78,7 +78,6 @@ private:
     bool m_bPrintUpper;
     bool m_bShowByteCount;
     bool m_bShowASCII;
-    uint m_uInsertWord;
     uint8_t m_clipboardByte;
     bool    m_hasClipboard;
     
@@ -133,6 +132,7 @@ private:
 	void statusMessage(const std::string& msg);                     // transient one-frame status bar message
 	bool inSelection(uint byte_pos) const;
 	bool promptHex(const char* label, uint nibbles, uint& out);
+	void insertBytesAt(uint pos, const uint8_t* bytes, uint n);
 
 	//
 	void editInit();

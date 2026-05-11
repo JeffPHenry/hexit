@@ -41,7 +41,6 @@ HexIt::HexIt()
 ,	m_bPrintUpper(false)
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
-,	m_uInsertWord(0)
 ,	m_clipboardByte(0)
 ,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
@@ -60,7 +59,6 @@ HexIt::HexIt(char* filename)
 ,	m_bPrintUpper(false)
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
-,	m_uInsertWord(0)
 ,	m_clipboardByte(0)
 ,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
@@ -228,10 +226,25 @@ void HexIt::editMode()
                     	case 'f':
                     		cmdFillWord();
                     		break;
-	                    case 'F':
-	                    	cmdFillWord();
-	                    	cmdInsertWordAt();
+	                    case 'F': {
+	                    	uint val = 0;
+	                    	if (promptHex("Fill+Insert", 4, val)) {
+	                    		auto* pbuf = m_buffer.rdbuf();
+	                    		if (pbuf->pubseekpos(m_cursor.word) == (std::streampos)m_cursor.word) {
+	                    			pbuf->sputc((char)((val >> 8) & 0xFF));
+	                    			pbuf->sputc((char)(val & 0xFF));
+	                    		}
+	                    		uint8_t bytes[2] = { (uint8_t)((val >> 8) & 0xFF), (uint8_t)(val & 0xFF) };
+	                    		insertBytesAt(m_cursor.word + WORD_SIZE, bytes, 2);
+	                    		m_cursor.word += WORD_SIZE;
+	                    		checkCursorOffscreen();
+	                    		m_bBufferDirty = true;
+	                    		char msg[40];
+	                    		snprintf(msg, sizeof(msg), "fill+insert %04X", val & 0xFFFF);
+	                    		statusMessage(msg);
+	                    	}
 	                    	break;
+	                    }
 
 	                    case 'i':
 	                    	cmdInsertWord();
@@ -895,12 +908,39 @@ void HexIt::cmdFillWord()
 
 void HexIt::cmdInsertWord()
 {
-	m_uInsertWord++;
+	uint8_t zeros[2] = { 0x00, 0x00 };
+	insertBytesAt(m_cursor.word, zeros, 2);
+	checkCursorOffscreen();
+	statusMessage("inserted 0000");
 }
 
 void HexIt::cmdInsertWordAt()
 {
+	uint val = 0;
+	if (!promptHex("Insert word", 4, val)) return;
+	uint8_t bytes[2] = { (uint8_t)((val >> 8) & 0xFF), (uint8_t)(val & 0xFF) };
+	insertBytesAt(m_cursor.word, bytes, 2);
+	checkCursorOffscreen();
+	char msg[40];
+	snprintf(msg, sizeof(msg), "inserted %04X", val & 0xFFFF);
+	statusMessage(msg);
+}
 
+void HexIt::insertBytesAt(uint pos, const uint8_t* bytes, uint n)
+{
+	if (n == 0) return;
+	std::string data = m_buffer.str();
+	if (pos > data.size()) pos = (uint)data.size();
+	data.insert(pos, reinterpret_cast<const char*>(bytes), n);
+
+	// rebuild the stringstream from the new data
+	m_buffer.str(std::string());
+	m_buffer.clear();
+	m_buffer.write(data.data(), (std::streamsize)data.size());
+	m_buffer.seekg(0, std::ios::beg);
+
+	m_uFileSize = (uint)data.size();
+	m_bBufferDirty = true;
 }
 
 void HexIt::cmdOutputFile()
