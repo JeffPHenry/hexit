@@ -804,7 +804,13 @@ void HexIt::editKey(uint nibble)
 
 void HexIt::cmdPageDn()
 {
-
+	uint page = m_uHeight * ROW_SIZE;
+	uint maxWord = (m_uFileSize > 0) ? ((m_uFileSize - 1) & ~0x1u) : 0;
+	uint target = m_cursor.word + page;
+	if (target > maxWord) target = maxWord;
+	m_cursor.word = target;
+	if (m_cursor.editing) toggleEdit(false); // abort in-flight edit
+	checkCursorOffscreen();
 }
 
 void HexIt::cmdCopyByte()
@@ -852,7 +858,10 @@ void HexIt::cmdCloseFile()
 
 void HexIt::cmdPageUp()
 {
-
+	uint page = m_uHeight * ROW_SIZE;
+	m_cursor.word = (m_cursor.word > page) ? (m_cursor.word - page) : 0;
+	if (m_cursor.editing) toggleEdit(false);
+	checkCursorOffscreen();
 }
 
 void HexIt::cmdPasteByte()
