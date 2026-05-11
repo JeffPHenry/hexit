@@ -50,6 +50,8 @@
 #define COLOR_COMMAND			6
 #define COLOR_SELECTION			7
 
+#define AI_ENV_VAR_NAME			"OPENAI_API_KEY"
+
 #define ROWS_TITLE				1
 #define ROWS_STATUS				1
 #define ROWS_COMMAND			2

@@ -11,6 +11,8 @@
 #include "hexit.h"
 
 #include <algorithm>
+#include <cstdlib>
+#include <unistd.h>
 
 const char HEX_NIBBLE[0x10] =
 {
@@ -45,7 +47,7 @@ HexIt::HexIt()
 ,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
 {
-    sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
+    snprintf(m_appVersion, sizeof(m_appVersion), "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
 }
 
 HexIt::HexIt(char* filename)
@@ -63,7 +65,7 @@ HexIt::HexIt(char* filename)
 ,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
 {
-	sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
+	snprintf(m_appVersion, sizeof(m_appVersion), "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
 
 	m_pFile = new fstream();
 	if(m_pFile)
@@ -210,6 +212,11 @@ void HexIt::editMode()
                     switch(key.code.codepoint)
                     {
                     	// Commands
+                    	case 'a':
+	                    case 'A':
+	                    	if (!m_cursor.editing) cmdAnalyzeAI();
+	                    	break;
+
                     	case 'b':
 	                    case 'B':
 	                    	cmdPageDn();
@@ -1146,4 +1153,245 @@ bool HexIt::saveToDisk()
 	m_bBufferDirty = false;
 	statusMessage("saved " + std::to_string(data.size()) + " bytes to " + target);
 	return true;
+}
+
+std::string HexIt::jsonEscape(const std::string& s)
+{
+	std::string out;
+	out.reserve(s.size() + 8);
+	for (size_t i = 0; i < s.size(); ++i) {
+		char c = s[i];
+		switch (c) {
+			case '"':  out += "\\\""; break;
+			case '\\': out += "\\\\"; break;
+			case '\n': out += "\\n";  break;
+			case '\r': out += "\\r";  break;
+			case '\t': out += "\\t";  break;
+			default:
+				if ((unsigned char)c < 0x20) {
+					char buf[8];
+					snprintf(buf, sizeof(buf), "\\u%04x", (unsigned char)c);
+					out += buf;
+				} else {
+					out += c;
+				}
+		}
+	}
+	return out;
+}
+
+std::string HexIt::extractContent(const std::string& json)
+{
+	const std::string needle = "\"content\":";
+	size_t p = json.find(needle);
+	if (p == std::string::npos) return std::string();
+	p += needle.size();
+	while (p < json.size() && (json[p] == ' ' || json[p] == '\t' || json[p] == '\n')) ++p;
+	if (p >= json.size() || json[p] != '"') return std::string();
+	++p;
+
+	std::string out;
+	while (p < json.size()) {
+		char c = json[p++];
+		if (c == '"') return out;
+		if (c == '\\' && p < json.size()) {
+			char esc = json[p++];
+			switch (esc) {
+				case '"':  out += '"';  break;
+				case '\\': out += '\\'; break;
+				case '/':  out += '/';  break;
+				case 'n':  out += '\n'; break;
+				case 'r':  out += '\r'; break;
+				case 't':  out += '\t'; break;
+				case 'b':  out += '\b'; break;
+				case 'f':  out += '\f'; break;
+				case 'u':
+					if (p + 4 <= json.size()) {
+						unsigned int cp = 0;
+						for (int i = 0; i < 4; ++i) {
+							char hc = json[p + i];
+							cp <<= 4;
+							if (hc >= '0' && hc <= '9') cp |= hc - '0';
+							else if (hc >= 'a' && hc <= 'f') cp |= 10 + (hc - 'a');
+							else if (hc >= 'A' && hc <= 'F') cp |= 10 + (hc - 'A');
+						}
+						p += 4;
+						if (cp < 0x80) {
+							out += (char)cp;
+						} else if (cp < 0x800) {
+							out += (char)(0xC0 | (cp >> 6));
+							out += (char)(0x80 | (cp & 0x3F));
+						} else {
+							out += (char)(0xE0 | (cp >> 12));
+							out += (char)(0x80 | ((cp >> 6) & 0x3F));
+							out += (char)(0x80 | (cp & 0x3F));
+						}
+					}
+					break;
+				default: out += esc; break;
+			}
+		} else {
+			out += c;
+		}
+	}
+	return out;
+}
+
+std::string HexIt::selectionAsHex()
+{
+	if (m_selAnchor < 0) return std::string();
+	uint a = (uint)m_selAnchor;
+	uint b = m_cursor.word + 1;
+	uint lo = (a < b) ? a : b;
+	uint hi = (a > b) ? a : b;
+	if (m_uFileSize > 0 && hi >= m_uFileSize) hi = m_uFileSize - 1;
+
+	std::string data = m_buffer.str();
+	std::string out;
+	out.reserve((hi - lo + 1) * 3);
+	for (uint i = lo; i <= hi; ++i) {
+		char buf[4];
+		snprintf(buf, sizeof(buf), "%02X ", (unsigned char)data[i]);
+		out += buf;
+	}
+	if (!out.empty() && out.back() == ' ') out.pop_back();
+	return out;
+}
+
+std::string HexIt::aiAnalyze(const std::string& bytes_hex)
+{
+	const char* key = std::getenv(AI_ENV_VAR_NAME);
+	if (!key || !*key) {
+		return std::string("Error: ") + AI_ENV_VAR_NAME + " is not set in the environment.";
+	}
+
+	std::string sys = "You are a reverse-engineering assistant. The user will paste a short hex byte sequence. Describe likely format, structure, and notable values. Keep it under 300 words.";
+	std::string body = std::string("{\"model\":\"gpt-4o-mini\",\"messages\":[")
+		+ "{\"role\":\"system\",\"content\":\"" + jsonEscape(sys) + "\"},"
+		+ "{\"role\":\"user\",\"content\":\""   + jsonEscape(bytes_hex) + "\"}]}";
+
+	char tmpl[] = "/tmp/hexit-aiXXXXXX";
+	int fd = mkstemp(tmpl);
+	if (fd < 0) return "Error: mkstemp failed";
+	ssize_t written = write(fd, body.data(), body.size());
+	close(fd);
+	if (written != (ssize_t)body.size()) {
+		unlink(tmpl);
+		return "Error: failed to write temp body";
+	}
+
+	// The API key stays in the inherited environment; the shell expands it at exec time.
+	std::string cmd = std::string("curl -sS -X POST https://api.openai.com/v1/chat/completions ")
+		+ "-H 'Content-Type: application/json' "
+		+ "-H \"Authorization: Bearer $" AI_ENV_VAR_NAME "\" "
+		+ "--data-binary @" + tmpl + " 2>&1";
+
+	FILE* pipe = popen(cmd.c_str(), "r");
+	if (!pipe) { unlink(tmpl); return "Error: popen failed"; }
+	std::string resp;
+	char chunk[4096];
+	size_t n;
+	while ((n = fread(chunk, 1, sizeof(chunk), pipe)) > 0) resp.append(chunk, n);
+	int rc = pclose(pipe);
+	unlink(tmpl);
+
+	if (rc != 0) {
+		return "Error: curl exited " + std::to_string(rc) + "\n" + resp;
+	}
+	std::string content = extractContent(resp);
+	if (content.empty()) {
+		return std::string("Error: no content in response\n") + resp.substr(0, 800);
+	}
+	return content;
+}
+
+void HexIt::showPopup(const std::string& title, const std::string& body)
+{
+	int rows, cols;
+	getmaxyx(stdscr, rows, cols);
+	int h = (rows * 6) / 10; if (h < 8) h = (rows < 8 ? rows - 2 : 8);
+	int w = (cols * 7) / 10; if (w < 40) w = (cols < 40 ? cols - 2 : 40);
+	int y = (rows - h) / 2;
+	int x = (cols - w) / 2;
+
+	WINDOW* pop = newwin(h, w, y, x);
+	keypad(pop, TRUE);
+	box(pop, 0, 0);
+
+	// word-wrap body to (w-2) columns
+	std::vector<std::string> lines;
+	{
+		std::string cur;
+		for (size_t i = 0; i < body.size(); ++i) {
+			char c = body[i];
+			if (c == '\n' || (int)cur.size() >= w - 2) {
+				lines.push_back(cur);
+				cur.clear();
+				if (c == '\n') continue;
+			}
+			cur += c;
+		}
+		if (!cur.empty()) lines.push_back(cur);
+	}
+
+	int viewH = h - 2 - 1; // top/bottom border, one footer line
+	int offset = 0;
+
+	auto redraw = [&]() {
+		werase(pop);
+		box(pop, 0, 0);
+		if (!title.empty()) {
+			mvwprintw(pop, 0, 2, " %s ", title.c_str());
+		}
+		for (int i = 0; i < viewH && (offset + i) < (int)lines.size(); ++i) {
+			mvwaddstr(pop, 1 + i, 1, lines[offset + i].c_str());
+		}
+		std::string footer = "  Up/Down=scroll  any other key closes  ";
+		mvwaddstr(pop, h - 1, 2, footer.c_str());
+		wrefresh(pop);
+	};
+
+	redraw();
+
+	while (true) {
+		TermKeyKey key;
+		if (termkey_waitkey(m_tk, &key) != TERMKEY_RES_KEY) continue;
+		if (key.type == TERMKEY_TYPE_KEYSYM) {
+			if (key.code.sym == TERMKEY_SYM_UP) {
+				if (offset > 0) { offset--; redraw(); }
+				continue;
+			}
+			if (key.code.sym == TERMKEY_SYM_DOWN) {
+				if (offset + viewH < (int)lines.size()) { offset++; redraw(); }
+				continue;
+			}
+			if (key.code.sym == TERMKEY_SYM_PAGEUP) {
+				offset = (offset > viewH) ? offset - viewH : 0; redraw(); continue;
+			}
+			if (key.code.sym == TERMKEY_SYM_PAGEDOWN) {
+				if (offset + viewH < (int)lines.size())
+					offset = std::min(offset + viewH, (int)lines.size() - viewH);
+				redraw(); continue;
+			}
+		}
+		break;
+	}
+
+	delwin(pop);
+	touchwin(stdscr);
+	refresh();
+	renderScreen();
+}
+
+void HexIt::cmdAnalyzeAI()
+{
+	if (m_selAnchor < 0) {
+		statusMessage("select bytes first (Shift+arrows)");
+		return;
+	}
+	std::string hex = selectionAsHex();
+	statusMessage("calling OpenAI...");
+	renderScreen();
+	std::string response = aiAnalyze(hex);
+	showPopup("Analyze Selection", response);
 }

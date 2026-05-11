@@ -126,6 +126,14 @@ private:
 	void cmdCloseFile();
 	void cmdPageUp();
 	void cmdPasteByte();
+	void cmdAnalyzeAI();
+
+	// AI helpers
+	std::string aiAnalyze(const std::string& bytes_hex);
+	void showPopup(const std::string& title, const std::string& body);
+	std::string jsonEscape(const std::string& s);
+	std::string extractContent(const std::string& json);
+	std::string selectionAsHex();
 
 	// helpers
 	bool saveToDisk();                                              // returns true on success
