@@ -57,11 +57,12 @@ public:
 	void editMode();				 // live editing with ncurses
 
 	void setSwitches(uint switches);
+	void setOutputFilename(const std::string& path);
 
 private:
 	fstream* m_pFile; // file handle
-    char m_inputFilename[128];
-    char m_outputFilename[128];
+    std::string m_inputFilename;
+    std::string m_outputFilename;
     char m_appVersion[16];
 
 	stringstream m_buffer;	// hold the entire file in memory!

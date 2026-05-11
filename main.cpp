@@ -121,7 +121,10 @@ int main(int argc, char *argv[])
     
 	// Does the user want uppercase letters?
 	h.setSwitches(switches);
-	
+
+	if( switches & SWITCH_OUTPUT )
+		h.setOutputFilename(output_fn);
+
 	// are we editing
 	if( switches & SWITCH_EDIT )
 	{

@@ -43,7 +43,6 @@ HexIt::HexIt()
 ,	m_uInsertWord(0)
 {
     sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
-    m_outputFilename[0] = 0;
 }
 
 HexIt::HexIt(char* filename)
@@ -59,17 +58,16 @@ HexIt::HexIt(char* filename)
 ,	m_uInsertWord(0)
 {
 	sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
-	m_outputFilename[0] = 0;
-	
+
 	m_pFile = new fstream();
 	if(m_pFile)
     {
         m_pFile->open(filename);
-        
+
         // detect file size!
         if( m_pFile->is_open() )
         {
-        	strcpy(m_inputFilename, filename);
+        	m_inputFilename = filename;
             m_pFile->seekg(0, ios::end);
             m_uFileSize = (uint)m_pFile->tellg();
             m_pFile->seekg(0, ios::beg);
@@ -359,6 +357,11 @@ void HexIt::setSwitches(uint switches)
     m_bShowASCII 	 = switches & SWITCH_SHOW_ASCII;
 }
 
+void HexIt::setOutputFilename(const std::string& path)
+{
+	m_outputFilename = path;
+}
+
 case_fptr HexIt::getCaseFunction()
 {
 	return (m_bPrintUpper ? uppercase : nouppercase );
@@ -492,10 +495,10 @@ void HexIt::renderScreen()
 	waddch(m_wTitleArea,' ');
 	waddstr(m_wTitleArea, m_appVersion);
 	// File Name
-	uint centered = HALF_WIDTH(m_uWidth) - HALF_WIDTH((uint)(strlen(m_inputFilename) + 6)); // + 6 for "File: "
+	uint centered = HALF_WIDTH(m_uWidth) - HALF_WIDTH((uint)(m_inputFilename.size() + 6)); // + 6 for "File: "
 	wmove(m_wTitleArea, 0, centered);
 	waddstr(m_wTitleArea, "File: ");
-	waddstr(m_wTitleArea, m_inputFilename);
+	waddstr(m_wTitleArea, m_inputFilename.c_str());
 	// Modified?
 	if(m_bBufferDirty)
 	{
