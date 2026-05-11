@@ -846,7 +846,35 @@ void HexIt::cmdCopyByte()
 
 void HexIt::cmdFindByte()
 {
+	uint val = 0;
+	if (!promptHex("Find byte", 2, val)) return;
+	uint8_t needle = (uint8_t)(val & 0xFF);
 
+	std::string data = m_buffer.str();
+	size_t start = (size_t)m_cursor.word + 1;
+	size_t hit = std::string::npos;
+	for (size_t i = start; i < data.size(); ++i) {
+		if ((uint8_t)data[i] == needle) { hit = i; break; }
+	}
+	if (hit == std::string::npos) {
+		// wrap from beginning to just before start
+		for (size_t i = 0; i < start && i < data.size(); ++i) {
+			if ((uint8_t)data[i] == needle) { hit = i; break; }
+		}
+	}
+	if (hit == std::string::npos) {
+		char msg[32];
+		snprintf(msg, sizeof(msg), "byte %02X not found", needle);
+		statusMessage(msg);
+		return;
+	}
+
+	m_cursor.word = (uint)(hit & ~0x1u);
+	checkCursorOffscreen();
+
+	char msg[40];
+	snprintf(msg, sizeof(msg), "found %02X @ %07zX", needle, hit);
+	statusMessage(msg);
 }
 
 void HexIt::cmdFillWord()
