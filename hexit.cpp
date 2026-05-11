@@ -75,11 +75,6 @@ HexIt::HexIt(char* filename)
     }
 }
 
-HexIt::HexIt(HexIt* h) : m_bPrintUpper(false)
-{
-	*this = h;
-}
-
 HexIt::~HexIt()
 {
 	if( m_pFile )
@@ -88,16 +83,6 @@ HexIt::~HexIt()
 		delete m_pFile;
 		m_pFile = NULL;
 	}
-}
-
-bool HexIt::operator=(HexIt* h)
-{
-	if(h)
-	{
-		memcpy(this, h, sizeof(HexIt));
-		return true;
-	}
-	return false;
 }
 
 void HexIt::print(ostream& output)
@@ -715,7 +700,7 @@ void HexIt::moveCursor(int x, int y)
 	
     
 	if( (y < 0 && newY >= 0) ||
-	    (y > 0 && newY < (m_uFileSize & 0xFFFFFF0)) )
+	    (y > 0 && newY < (int)(m_uFileSize & 0xFFFFFFF0u)) )
     {
 		m_cursor.word = newY;
 	}
@@ -841,11 +826,6 @@ void HexIt::cmdInsertWordAt()
 void HexIt::cmdOutputFile()
 {
 	saveToDisk();
-}
-
-void HexIt::cmdCursorWord()
-{
-
 }
 
 void HexIt::cmdCloseFile()

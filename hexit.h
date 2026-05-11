@@ -48,10 +48,7 @@ class HexIt
 public:
 	HexIt();
 	HexIt(char* filename);
-	HexIt(HexIt* h);
 	~HexIt();
-	
-	bool operator=(HexIt* h);
 
 	void print(ostream& output); 	 // output to terminal
 	void editMode();				 // live editing with ncurses
@@ -122,7 +119,6 @@ private:
 	void cmdInsertWord();
 	void cmdInsertWordAt();
 	void cmdOutputFile();
-	void cmdCursorWord();
 	void cmdCloseFile();
 	void cmdPageUp();
 	void cmdPasteByte();
