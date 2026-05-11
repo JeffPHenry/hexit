@@ -1,21 +1,23 @@
-OBJS = main.o hexit.o
-CC = g++
-DEBUG = -g
-CFLAGS = -Wall -c
-LFLAGS = -Wall
-LDLIBS = -lcurses -ltermkey
-EXE = hexit
+OBJS    = main.o hexit.o
+CC      = g++
+DEBUG   = -g
+CFLAGS  = -Wall -c
+LFLAGS  = -Wall
+LDLIBS  = -lcurses -ltermkey
+EXE     = hexit
 
 SRCS = \
-main.cpp \
-hexit.cpp \
+    main.cpp \
+    hexit.cpp
 
-hexit: $(OBJS)
+.PHONY: all clean
+all: $(EXE)
 
-	$(CC) $(DEBUG) $(LFLAGS) $(LDLIBS) -o $(EXE) $(OBJS)
+$(EXE): $(OBJS)
+	$(CC) $(DEBUG) $(LFLAGS) -o $(EXE) $(OBJS) $(LDLIBS)
 
-hexit.objs: $(SRCS) hexit.h
-	$(CC) $(DEBUG) $(CFLAGS) $(SRCS)
+%.o: %.cpp hexit.h hexit_def.h
+	$(CC) $(DEBUG) $(CFLAGS) $< -o $@
 
 clean:
-	rm *.o hexit
+	rm -f *.o $(EXE)

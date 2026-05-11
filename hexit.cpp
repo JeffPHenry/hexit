@@ -14,14 +14,6 @@
 #include <cstdlib>
 #include <unistd.h>
 
-const char HEX_NIBBLE[0x10] =
-{
-	'0', '1', '2', '3',
-	'4', '5', '6', '7',
-	'8', '9', 'A', 'B',
-	'C', 'D', 'E', 'F'
-};
-
 uint g_column_pos[0x10] =
 {
      0,  2,  5,  7,
@@ -165,10 +157,8 @@ void HexIt::editMode()
 			renderScreen();
             
  			// accept input
- 			TermKeyResult ret;
  			TermKeyKey key;
-			
- 			ret = termkey_waitkey(m_tk, &key);
+ 			termkey_waitkey(m_tk, &key);
             if( key.type == TERMKEY_TYPE_KEYSYM) // a symbol key
             {
              	switch(key.code.sym)
