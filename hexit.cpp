@@ -42,6 +42,8 @@ HexIt::HexIt()
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
 ,	m_uInsertWord(0)
+,	m_clipboardByte(0)
+,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
 {
     sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
@@ -59,6 +61,8 @@ HexIt::HexIt(char* filename)
 ,	m_bShowByteCount(true)
 ,	m_bShowASCII(true)
 ,	m_uInsertWord(0)
+,	m_clipboardByte(0)
+,	m_hasClipboard(false)
 ,	m_selAnchor(-1)
 {
 	sprintf(m_appVersion, "HexIt v%d.%d", VERSION_MAJOR, VERSION_MINOR);
@@ -259,11 +263,7 @@ void HexIt::editMode()
 	                    
 	                    case 'v':
 	                    case 'V':
-	                    	if(!m_cursor.editing)
-	                    	{
-	                    		toggleEdit(true);
-	                    		cmdPasteByte();
-	                    	}
+	                    	if(!m_cursor.editing) cmdPasteByte();
 	                    	break;
 	                    default:
 	                    	break;
@@ -832,7 +832,16 @@ void HexIt::cmdPageDn()
 
 void HexIt::cmdCopyByte()
 {
+	char b = 0;
+	m_buffer.seekg(m_cursor.word, std::ios::beg);
+	m_buffer.read(&b, 1);
+	m_clipboardByte = (uint8_t)b;
+	m_hasClipboard = true;
 
+	char msg[40];
+	snprintf(msg, sizeof(msg), "copied %02X at %07X", m_clipboardByte, m_cursor.word);
+	statusMessage(msg);
+	m_buffer.seekg(m_uFilePos);
 }
 
 void HexIt::cmdFindByte()
@@ -878,7 +887,16 @@ void HexIt::cmdPageUp()
 
 void HexIt::cmdPasteByte()
 {
-
+	if (!m_hasClipboard) {
+		statusMessage("clipboard empty");
+		return;
+	}
+	auto* pbuf = m_buffer.rdbuf();
+	if (pbuf->pubseekpos(m_cursor.word) == (std::streampos)m_cursor.word) {
+		pbuf->sputc((char)m_clipboardByte);
+		m_bBufferDirty = true;
+		statusMessage("pasted");
+	}
 }
 
 

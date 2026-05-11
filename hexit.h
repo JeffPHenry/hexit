@@ -79,6 +79,8 @@ private:
     bool m_bShowByteCount;
     bool m_bShowASCII;
     uint m_uInsertWord;
+    uint8_t m_clipboardByte;
+    bool    m_hasClipboard;
     
 	std::string m_statusMessage;
 	int64_t m_selAnchor;        // -1 means no selection; otherwise byte offset of the anchor
